@@ -1,84 +1,81 @@
-// ==================================== RECEPTOR ===========================================
+//===================================================== RECEPTOR ======================================================
 
-
-//bibliotecas necessárias
-
+// Bibliotecas
 #include <ESP32Servo.h>
-#include <PubSubClient.h>
-#include <WifiManager.h>
+#include <IOXhop_FirebaseESP32.h>
+#include <WiFiManager.h>
 
-// variaveis para o controle do Servo
+// Variáveis
+#define pinServo 2    // Pino do servo
+#define pinMosfet 4   // Pino do MOSFET
 
-#define pinRegistro 2 // pino do sinal PWM
-#define chave 4 // pino do mosfet
+// Caminho do banco
+#define FIREBASE_HOST "microcontroladores-45c55-default-rtdb.firebaseio.com"
+#define FIREBASE_AUTH "e2PUt2uIYR0qZU8YAZa1kVuR2P7mSJ6imJyyuHt6"
 
+// Funções
+void abrirRegistro();
+void fecharRegistro();
+void monitorarDados();
+bool conectarWifi();
 
-// funções auxiliares para o servo
-bool abrirRegistro();
-bool fecharRegistro();
-
-
-// funções auxiliares para o MQTT
-
-void recebeDados();
-void enviaDados();
-
-// funções auxiliares para a conexão
-
-void conectaWifi();
-void conectaMQTT();
-void mantemConexao();
-
-
-//objetos
-
+// Objetos
 Servo registro;
 
+// Estado atual do servo (0 = aberto, 1 = fechado). Começa indefinido (-1)
+int estadoAtual = -1;
+
 void setup() {
- registro.attach(pinRegistro); // atribui ao objeto o pino de pwm
+  conectarWifi();
 
+  pinMode(pinMosfet, OUTPUT);
+  digitalWrite(pinMosfet, LOW); // Garante que o MOSFET inicie desligado
 
-
-
-
-
-
-
-
+  registro.attach(pinServo);
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
 }
 
 void loop() {
-  
-
-
-
-
-
-
+  monitorarDados();
+  delay(2000); // Verifica a cada 3 segundos
 }
 
-bool abrirRegistro(){
-  bool confirmar = 1;
-  int i = 180;
+void monitorarDados() {
+  bool posicao = Firebase.getBool("/Posicao");
 
-  for(i = 180; i >= 0; i--){
-    registro.write(i);
-    delay(15);
+  if (posicao != estadoAtual) {
+    // Houve mudança
+    if (posicao == 0) {
+      abrirRegistro();
+
+    }
+    else if (posicao == 1) {
+      fecharRegistro();
+    }
+    estadoAtual = posicao; // Atualiza estado atual
+  } 
+  else {
+   // nao faz nada
   }
-
-  return confirmar;
 }
 
-
-bool fecharRegistro(){
-  bool confirmar = 1;
-  int i = 0;
-
-  for(i = 0; i <= 180; i++){
-    registro.write(i);
-    delay(15);
-  }
-
-  return confirmar;
+bool conectarWifi() {
+  WiFiManager wm;
+  return wm.autoConnect("Receptor");
 }
 
+void abrirRegistro() {
+  digitalWrite(pinMosfet, HIGH);
+  delay(150);
+  registro.write(0);
+  delay(1000);
+  digitalWrite(pinMosfet, LOW);
+}
+
+void fecharRegistro() {
+  digitalWrite(pinMosfet, HIGH);
+  delay(150);
+  registro.write(180);
+  delay(1000);
+  digitalWrite(pinMosfet, LOW);
+}
